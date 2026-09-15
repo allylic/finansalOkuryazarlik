@@ -79,12 +79,17 @@ Veritabanı notu:
 
 ### Faz 4 — Yeniden Dağıtım ve Sayaç
 
-Henüz uygulanmadı:
+Hazır:
 
-- Her üç turda bir yeniden dağıtım durumuna geçiş.
-- Sunucu zamanına bağlı iki dakikalık sayaç.
-- Güncel toplam varlığın yeniden dağıtılması.
-- Oyuncular hazır olduğunda veya süre dolduğunda oyuna geri dönüş.
+- Üçüncü ve her sonraki üç turun sonunda otomatik yeniden dağıtım durumu.
+- Veritabanında tutulan bitiş zamanına bağlı iki dakikalık sayaç.
+- Güncel toplam varlığın sekiz yatırım aracına yeniden dağıtılması veya mevcut portföyle devam etme seçeneği.
+- Oyuncuların hazır bildirimlerinin anlık izlenmesi.
+- Herkes hazır olduğunda veya süre dolduğunda oyunun otomatik sürdürülmesi.
+
+Veritabanı notu:
+
+- `supabase/phase4.sql` Supabase SQL Editor üzerinden çalıştırılmalıdır; dosya tur geçişi ve yeniden dağıtım RPC fonksiyonlarını ekler.
 
 ### Faz 5 — Sonuçlar ve Analitik
 

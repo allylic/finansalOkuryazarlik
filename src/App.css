@@ -357,3 +357,35 @@ button:disabled {
     flex-direction: column;
   }
 }
+
+.timer {
+  background: #183d27;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 1.4rem;
+  letter-spacing: 0.08em;
+  padding: 12px 14px;
+}
+
+.rebalance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: end;
+}
+
+.ready-summary {
+  color: #31523b;
+  font-weight: 700;
+  margin: 20px 0 0;
+}
+
+@media (max-width: 600px) {
+  .rebalance-actions {
+    justify-content: stretch;
+  }
+
+  .rebalance-actions button {
+    width: 100%;
+  }
+}
