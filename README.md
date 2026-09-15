@@ -93,12 +93,17 @@ Veritabanı notu:
 
 ### Faz 5 — Sonuçlar ve Analitik
 
-Henüz uygulanmadı:
+Hazır:
 
-- Bitiş koşulu ve `finished` oyun durumu.
-- Sıralama tablosu ve kazananın ilanı.
-- En yüksek getiri ve en yüksek zarar istatistikleri.
-- Yeni oyun için lobiye dönüş ve sıfırlama işlemi.
+- Her oyuncu ilk haberini çektikten sonra otomatik `finished` oyun durumu.
+- Kazananı ilan eden sıralama tablosu.
+- Her oyuncu için başlangıç portföyüyle karşılaştırmalı en güçlü ve en zayıf yatırım aracı performansı.
+- Yeni oyun için yerel oturumu temizleyip lobiye dönüş.
+
+Veritabanı notu:
+
+- `supabase/phase5.sql` oyunun bitiş koşulunu ekler.
+- `supabase/phase5-analytics.sql` başlangıç portföyü anlık görüntülerini kaydeder ve analitik için gereklidir.
 
 ## Kurulum
 

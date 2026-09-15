@@ -39,6 +39,7 @@ function App() {
   const [game, setGame] = useState(null)
   const [players, setPlayers] = useState([])
   const [latestNews, setLatestNews] = useState(null)
+  const [portfolioSnapshots, setPortfolioSnapshots] = useState([])
   const [rebalancePlayers, setRebalancePlayers] = useState([])
   const [portfolio, setPortfolio] = useState(emptyPortfolio)
   const [rebalancePortfolio, setRebalancePortfolio] = useState(emptyPortfolio)
@@ -60,11 +61,26 @@ function App() {
     ? Math.max(0, Math.ceil((new Date(game.rebalance_ends_at).getTime() - currentTime) / 1000))
     : 0
   const formattedTime = `${String(Math.floor(secondsRemaining / 60)).padStart(2, '0')}:${String(secondsRemaining % 60).padStart(2, '0')}`
+  const rankedPlayers = [...players].sort((first, second) => Number(second.total_value) - Number(first.total_value))
+  const playerPerformance = rankedPlayers.map((player) => {
+    const snapshot = portfolioSnapshots.find((item) => item.player_id === player.id)
+    const investments = investmentOptions.map(({ key, label }) => {
+      const startingValue = Number(snapshot?.[key] ?? 0)
+      const value = Number(player[key])
+      const change = value - startingValue
+      return { label, change, percentage: startingValue ? (change / startingValue) * 100 : 0, value }
+    })
+    return {
+      ...player,
+      bestInvestment: [...investments].sort((first, second) => second.change - first.change)[0],
+      worstInvestment: [...investments].sort((first, second) => first.change - second.change)[0],
+    }
+  })
 
   const loadGame = useCallback(async (requestedGameId) => {
     if (!supabase || !requestedGameId) return
 
-    const [gameResult, playersResult, newsResult, rebalanceResult] = await Promise.all([
+    const [gameResult, playersResult, newsResult, snapshotsResult, rebalanceResult] = await Promise.all([
       supabase.from('games').select('*').eq('id', requestedGameId).single(),
       supabase.from('players').select('*').eq('game_id', requestedGameId).order('created_at'),
       supabase
@@ -74,20 +90,23 @@ function App() {
         .order('round_number', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase.from('game_portfolio_snapshots').select('*').eq('game_id', requestedGameId),
       supabase.from('player_rebalances').select('player_id').eq('game_id', requestedGameId),
     ])
 
-    if (gameResult.error || playersResult.error || newsResult.error || rebalanceResult.error) {
-      setMessage(gameResult.error?.message ?? playersResult.error?.message ?? newsResult.error?.message ?? rebalanceResult.error?.message ?? 'Oyun bilgileri yüklenemedi.')
+    if (gameResult.error || playersResult.error || newsResult.error || snapshotsResult.error || rebalanceResult.error) {
+      setMessage(gameResult.error?.message ?? playersResult.error?.message ?? newsResult.error?.message ?? snapshotsResult.error?.message ?? rebalanceResult.error?.message ?? 'Oyun bilgileri yüklenemedi.')
       return
     }
 
     setGame(gameResult.data)
     setPlayers(playersResult.data)
     setLatestNews(newsResult.data)
+    setPortfolioSnapshots(snapshotsResult.data)
     setRebalancePlayers(rebalanceResult.data)
     if (gameResult.data.status === 'playing') setScreen('game')
     if (gameResult.data.status === 'rebalancing') setScreen('rebalance')
+    if (gameResult.data.status === 'finished') setScreen('results')
   }, [])
 
   useEffect(() => {
@@ -259,6 +278,7 @@ function App() {
     setGame(null)
     setPlayers([])
     setLatestNews(null)
+    setPortfolioSnapshots([])
     setPortfolio(emptyPortfolio())
     setScreen('lobby')
     setMessage('')
@@ -273,6 +293,41 @@ function App() {
           <p>Oyunu başlatmak için Supabase ortam değişkenleri yapılandırılmalıdır.</p>
           <code>VITE_SUPABASE_URL</code>
           <code>VITE_SUPABASE_ANON_KEY</code>
+        </section>
+      </main>
+    )
+  }
+
+  if (screen === 'results') {
+    const winner = playerPerformance[0]
+
+    return (
+      <main className="app-shell">
+        <section className="results-card">
+          <span className="eyebrow">Oyun tamamlandı · {game?.round_count ?? 0} tur</span>
+          <h1>Muz Cumhuriyeti Finans Bakanı</h1>
+          {winner && (
+            <div className="winner-card">
+              <span>Kazanan</span>
+              <h2>{winner.name}</h2>
+              <strong>{formatCurrency(winner.total_value)}</strong>
+            </div>
+          )}
+          <div className="leaderboard">
+            {playerPerformance.map((player, index) => (
+              <article className="score-card" key={player.id}>
+                <div className="score-heading">
+                  <span>#{index + 1} · {player.name}{player.id === playerId ? ' (Sen)' : ''}</span>
+                  <strong>{formatCurrency(player.total_value)}</strong>
+                </div>
+                <div className="score-details">
+                  <span>En güçlü: <b>{player.bestInvestment.label}</b> · %{player.bestInvestment.percentage.toFixed(1)}</span>
+                  <span>En zayıf: <b>{player.worstInvestment.label}</b> · %{player.worstInvestment.percentage.toFixed(1)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+          <button className="primary-button full-width" type="button" onClick={leaveGame}>Yeni Oyun</button>
         </section>
       </main>
     )
