@@ -36,7 +36,9 @@ function App() {
   const [gameId, setGameId] = useState(() => localStorage.getItem('finans-game-id') ?? '')
   const [playerId, setPlayerId] = useState(() => localStorage.getItem('finans-player-id') ?? '')
   const [joinGameId, setJoinGameId] = useState('')
+  const [game, setGame] = useState(null)
   const [players, setPlayers] = useState([])
+  const [latestNews, setLatestNews] = useState(null)
   const [portfolio, setPortfolio] = useState(emptyPortfolio)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -45,24 +47,34 @@ function App() {
     () => players.find((player) => player.id === playerId),
     [playerId, players],
   )
+  const activePlayer = game ? players[game.current_turn_index] : null
   const portfolioTotal = getPortfolioTotal(portfolio)
   const remainingBudget = INITIAL_BUDGET - portfolioTotal
 
   const loadGame = useCallback(async (requestedGameId) => {
     if (!supabase || !requestedGameId) return
 
-    const [{ data: gameData, error: gameError }, { data: playersData, error: playersError }] = await Promise.all([
+    const [gameResult, playersResult, newsResult] = await Promise.all([
       supabase.from('games').select('*').eq('id', requestedGameId).single(),
       supabase.from('players').select('*').eq('game_id', requestedGameId).order('created_at'),
+      supabase
+        .from('game_news')
+        .select('round_number, drawn_at, news:news_id(haber_metni)')
+        .eq('game_id', requestedGameId)
+        .order('round_number', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
-    if (gameError || playersError) {
-      setMessage(gameError?.message ?? playersError?.message ?? 'Oyun bilgileri yüklenemedi.')
+    if (gameResult.error || playersResult.error || newsResult.error) {
+      setMessage(gameResult.error?.message ?? playersResult.error?.message ?? newsResult.error?.message ?? 'Oyun bilgileri yüklenemedi.')
       return
     }
 
-    setPlayers(playersData)
-    if (gameData.status === 'playing') setScreen('game')
+    setGame(gameResult.data)
+    setPlayers(playersResult.data)
+    setLatestNews(newsResult.data)
+    if (gameResult.data.status === 'playing') setScreen('game')
   }, [])
 
   useEffect(() => {
@@ -73,6 +85,7 @@ function App() {
       .channel(`game-${gameId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, () => loadGame(gameId))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `game_id=eq.${gameId}` }, () => loadGame(gameId))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_news', filter: `game_id=eq.${gameId}` }, () => loadGame(gameId))
       .subscribe()
 
     return () => {
@@ -98,7 +111,6 @@ function App() {
   const createGame = async () => {
     const trimmedName = name.trim()
     if (!trimmedName) return setMessage('Devam etmek için oyuncu adını girin.')
-    if (!supabase) return setMessage('Supabase bağlantısı yapılandırılmamış.')
 
     setLoading(true)
     setMessage('')
@@ -124,7 +136,6 @@ function App() {
     const trimmedName = name.trim()
     const requestedGameId = joinGameId.trim()
     if (!trimmedName || !requestedGameId) return setMessage('Oyuncu adını ve oda kodunu girin.')
-    if (!supabase) return setMessage('Supabase bağlantısı yapılandırılmamış.')
 
     setLoading(true)
     setMessage('')
@@ -147,7 +158,7 @@ function App() {
   }
 
   const confirmPortfolio = async () => {
-    if (!currentPlayer || !supabase) return
+    if (!currentPlayer) return
     if (Math.round(portfolioTotal) !== INITIAL_BUDGET) {
       setMessage('Portföy toplamı tam olarak 1.000.000 TL olmalı.')
       return
@@ -162,11 +173,7 @@ function App() {
       return setMessage(error.message)
     }
 
-    await loadGame(gameId)
-    const { data: refreshedPlayers, error: playersError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('game_id', gameId)
+    const { data: refreshedPlayers, error: playersError } = await supabase.from('players').select('*').eq('game_id', gameId)
     if (!playersError && refreshedPlayers.length > 0 && refreshedPlayers.every(isPortfolioComplete)) {
       const { error: statusError } = await supabase.from('games').update({ status: 'playing' }).eq('id', gameId)
       if (statusError) setMessage(statusError.message)
@@ -176,12 +183,29 @@ function App() {
     setMessage('Portföyün onaylandı. Diğer oyuncular bekleniyor.')
   }
 
+  const drawNews = async () => {
+    if (!gameId || !playerId) return
+
+    setLoading(true)
+    setMessage('')
+    const { data, error } = await supabase.rpc('draw_news_for_game', {
+      requested_game_id: gameId,
+      requested_player_id: playerId,
+    })
+    setLoading(false)
+
+    if (error) return setMessage(error.message)
+    setLatestNews({ round_number: data.round_count, news: data.news })
+  }
+
   const leaveGame = () => {
     localStorage.removeItem('finans-game-id')
     localStorage.removeItem('finans-player-id')
     setGameId('')
     setPlayerId('')
+    setGame(null)
     setPlayers([])
+    setLatestNews(null)
     setPortfolio(emptyPortfolio())
     setScreen('lobby')
     setMessage('')
@@ -205,17 +229,39 @@ function App() {
     return (
       <main className="app-shell">
         <section className="game-card">
-          <span className="eyebrow">Oyun başladı</span>
-          <h1>Portföyler hazır</h1>
-          <p>Tüm oyuncular başlangıç portföylerini onayladı. Haber çarkı Faz 3'te eklenecek.</p>
-          <div className="player-list">
+          <div className="game-header">
+            <div>
+              <span className="eyebrow">Tur {game?.round_count ?? 0}</span>
+              <h1>Haber Çarkı</h1>
+            </div>
+            <span className="turn-badge">Sıra: {activePlayer?.name ?? 'Yükleniyor'}</span>
+          </div>
+
+          {latestNews ? (
+            <article className="news-card">
+              <span>Son dakika · Tur {latestNews.round_number}</span>
+              <h2>{latestNews.news.haber_metni}</h2>
+              <p>Haber etkileri tüm portföylere uygulandı.</p>
+            </article>
+          ) : (
+            <article className="news-card waiting-news">
+              <span>İlk haber bekleniyor</span>
+              <h2>Sırası gelen oyuncu haber çarkını başlatsın.</h2>
+            </article>
+          )}
+
+          <button className="primary-button full-width" disabled={loading || activePlayer?.id !== playerId} type="button" onClick={drawNews}>
+            {loading ? 'Haber çekiliyor...' : activePlayer?.id === playerId ? 'Haber Çek' : `${activePlayer?.name ?? 'Diğer oyuncu'} haber çekiyor`}
+          </button>
+          <div className="player-list portfolio-list">
             {players.map((player) => (
               <div className="player-row" key={player.id}>
-                <span>{player.name}</span>
+                <span>{player.name}{player.id === playerId ? ' (Sen)' : ''}</span>
                 <strong>{formatCurrency(player.total_value)}</strong>
               </div>
             ))}
           </div>
+          {message && <p className="status-message">{message}</p>}
         </section>
       </main>
     )
@@ -240,22 +286,13 @@ function App() {
             {investmentOptions.map(({ key, label }) => (
               <label className="allocation-field" key={key}>
                 <span>{label}</span>
-                <input
-                  inputMode="numeric"
-                  min="0"
-                  step="1000"
-                  type="number"
-                  value={portfolio[key]}
-                  onChange={(event) => setPortfolio((current) => ({ ...current, [key]: event.target.value }))}
-                />
+                <input inputMode="numeric" min="0" step="1000" type="number" value={portfolio[key]} onChange={(event) => setPortfolio((current) => ({ ...current, [key]: event.target.value }))} />
               </label>
             ))}
           </div>
           <div className="portfolio-footer">
             <span>Dağıtılan: <strong>{formatCurrency(portfolioTotal)}</strong></span>
-            <button className="primary-button" disabled={loading || remainingBudget !== 0} type="button" onClick={confirmPortfolio}>
-              {loading ? 'Kaydediliyor...' : 'Onayla ve Oyuna Geç'}
-            </button>
+            <button className="primary-button" disabled={loading || remainingBudget !== 0} type="button" onClick={confirmPortfolio}>{loading ? 'Kaydediliyor...' : 'Onayla ve Oyuna Geç'}</button>
           </div>
           {message && <p className="status-message">{message}</p>}
         </section>
@@ -269,13 +306,9 @@ function App() {
         <span className="eyebrow">Muz Cumhuriyeti</span>
         <h1>Finans Oyunu</h1>
         <p className="intro">Haberleri doğru okuyup en güçlü portföyü oluştur.</p>
-
         {!gameId ? (
           <div className="join-grid">
-            <label>
-              Oyuncu adı
-              <input maxLength="40" placeholder="Adını yaz" value={name} onChange={(event) => setName(event.target.value)} />
-            </label>
+            <label>Oyuncu adı<input maxLength="40" placeholder="Adını yaz" value={name} onChange={(event) => setName(event.target.value)} /></label>
             <div className="action-card">
               <h2>Yeni oyun</h2>
               <p>Bir oda oluştur ve kodu diğer oyuncularla paylaş.</p>
@@ -289,10 +322,7 @@ function App() {
           </div>
         ) : (
           <div className="room-view">
-            <div className="room-code">
-              <span>Oda kodu</span>
-              <code>{gameId}</code>
-            </div>
+            <div className="room-code"><span>Oda kodu</span><code>{gameId}</code></div>
             <div className="player-list">
               {players.map((player) => (
                 <div className="player-row" key={player.id}>
@@ -301,9 +331,7 @@ function App() {
                 </div>
               ))}
             </div>
-            <button className="primary-button full-width" type="button" onClick={() => setScreen('portfolio')}>
-              {isPortfolioComplete(currentPlayer ?? {}) ? 'Portföyünü Görüntüle' : 'Portföyünü Oluştur'}
-            </button>
+            <button className="primary-button full-width" type="button" onClick={() => setScreen('portfolio')}>{isPortfolioComplete(currentPlayer ?? {}) ? 'Portföyünü Görüntüle' : 'Portföyünü Oluştur'}</button>
             <button className="text-button" type="button" onClick={leaveGame}>Odadan ayrıl</button>
           </div>
         )}

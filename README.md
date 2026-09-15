@@ -64,13 +64,18 @@ Henüz uygulanmadı:
 
 ### Faz 3 — Haber Çarkı ve Portföy Güncelleme
 
-Henüz uygulanmadı:
+Hazır:
 
-- Sıra yönetimi.
-- Daha önce kullanılmamış rastgele haber seçimi.
-- Haber gösterimi ve tüm portföyler için etki çarpanı hesaplaması.
-- Güncellenen portföyler ile toplam varlık değerinin kaydedilmesi.
-- Tur sayacının artırılması.
+- Oyuncu sırasını `current_turn_index` ile yöneten tur sistemi.
+- Önceden çıkmamış haberlerin rastgele seçimi ve haber geçmişinin saklanması.
+- Çekilen haberin tüm yatırım araçlarına ait etkilerinin tüm oyuncu portföylerine atomik uygulanması.
+- Güncel portföy ve toplam varlık değerinin kaydedilmesi.
+- Tur sayacının artırılması ve sıranın sonraki oyuncuya geçirilmesi.
+- Realtime ile tüm oyuncuların haber ve portföy güncellemelerini anlık görmesi.
+
+Veritabanı notu:
+
+- `supabase/phase3.sql` Supabase SQL Editor üzerinden çalıştırılmalıdır; bu dosya `game_news` tablosunu ve `draw_news_for_game` fonksiyonunu içerir.
 
 ### Faz 4 — Yeniden Dağıtım ve Sayaç
 
