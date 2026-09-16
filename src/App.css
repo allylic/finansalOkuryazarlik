@@ -310,16 +310,32 @@ button:disabled {
 
 .preset-buttons {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .small-button {
   background: #236b35;
   border: 1px solid #236b35;
   color: #fff;
-  font-size: 0.82rem;
-  padding: 8px 12px;
+  font-size: 0.8rem;
+  padding: 7px 10px;
   border-radius: 8px;
+}
+
+.small-button.balanced {
+  background: #0284c7;
+  border-color: #0284c7;
+}
+
+.small-button.risky {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+
+.small-button.very-risky {
+  background: #dc2626;
+  border-color: #dc2626;
 }
 
 .small-button.outline {
@@ -327,8 +343,9 @@ button:disabled {
   color: #236b35;
 }
 
-.small-button:hover {
+.small-button:not(:disabled):hover {
   opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 /* KPI Grid & Cards */

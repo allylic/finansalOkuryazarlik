@@ -17,7 +17,66 @@ const investmentOptions = [
 
 const emptyPortfolio = () => Object.fromEntries(investmentOptions.map(({ key }) => [key, '0']))
 
+const PRESET_DISTRIBUTIONS = {
+  dengeli: {
+    faiz: 0.25,
+    tahvil: 0.20,
+    altin: 0.15,
+    fon: 0.15,
+    hisse: 0.10,
+    eurobond: 0.10,
+    gumus: 0.05,
+    viop: 0.0,
+  },
+  riskli: {
+    hisse: 0.35,
+    fon: 0.20,
+    altin: 0.15,
+    gumus: 0.10,
+    viop: 0.10,
+    eurobond: 0.05,
+    faiz: 0.05,
+    tahvil: 0.0,
+  },
+  cokRiskli: {
+    viop: 0.40,
+    hisse: 0.35,
+    gumus: 0.15,
+    altin: 0.10,
+    fon: 0.0,
+    eurobond: 0.0,
+    faiz: 0.0,
+    tahvil: 0.0,
+  },
+}
+
+const calculateAllocation = (totalBudget, ratios) => {
+  const allocated = {}
+  let runningSum = 0
+
+  investmentOptions.forEach(({ key }, index) => {
+    const ratio = ratios[key] || 0
+    if (index === investmentOptions.length - 1) {
+      allocated[key] = String(totalBudget - runningSum)
+    } else {
+      const val = Math.round(totalBudget * ratio)
+      allocated[key] = String(val)
+      runningSum += val
+    }
+  })
+
+  const actualSum = Object.values(allocated).reduce((acc, v) => acc + Number(v), 0)
+  const diff = totalBudget - actualSum
+  if (diff !== 0) {
+    const targetKey = investmentOptions.find(({ key }) => Number(allocated[key]) > 0)?.key || 'hisse'
+    allocated[targetKey] = String(Number(allocated[targetKey]) + diff)
+  }
+
+  return allocated
+}
+
 const formatCurrency = (value) =>
+
   new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: 'TRY',
@@ -223,6 +282,12 @@ function App() {
     setPortfolio(newPort)
   }
 
+  const applyPreset = (presetType) => {
+    const ratios = PRESET_DISTRIBUTIONS[presetType]
+    if (!ratios) return
+    setPortfolio(calculateAllocation(INITIAL_BUDGET, ratios))
+  }
+
   const resetPortfolio = () => {
     setPortfolio(emptyPortfolio())
   }
@@ -261,6 +326,12 @@ function App() {
     const newPort = Object.fromEntries(investmentOptions.map(({ key }) => [key, String(share)]))
     newPort['hisse'] = String(share + remainder)
     setRebalancePortfolio(newPort)
+  }
+
+  const applyRebalancePreset = (presetType) => {
+    const ratios = PRESET_DISTRIBUTIONS[presetType]
+    if (!ratios) return
+    setRebalancePortfolio(calculateAllocation(rebalanceBudget, ratios))
   }
 
   const resetRebalancePortfolio = () => {
@@ -555,7 +626,10 @@ function App() {
               </strong>
             </div>
             <div className="preset-buttons">
-              <button className="small-button" disabled={isReady} type="button" onClick={distributeEquallyRebalance}>⚖️ Eşit Dağıt</button>
+              <button className="small-button" disabled={isReady} type="button" onClick={distributeEquallyRebalance}>⚖️ Eşit</button>
+              <button className="small-button balanced" disabled={isReady} type="button" onClick={() => applyRebalancePreset('dengeli')}>🛡️ Dengeli</button>
+              <button className="small-button risky" disabled={isReady} type="button" onClick={() => applyRebalancePreset('riskli')}>🚀 Riskli</button>
+              <button className="small-button very-risky" disabled={isReady} type="button" onClick={() => applyRebalancePreset('cokRiskli')}>⚡ Çok Riskli</button>
               <button className="small-button outline" disabled={isReady} type="button" onClick={keepCurrentPortfolioPresets}>📋 Portföyü Koru</button>
               <button className="small-button outline" disabled={isReady} type="button" onClick={resetRebalancePortfolio}>🔄 Sıfırla</button>
             </div>
@@ -762,7 +836,10 @@ function App() {
               </strong>
             </div>
             <div className="preset-buttons">
-              <button className="small-button" type="button" onClick={distributeEqually}>⚖️ Eşit Dağıt</button>
+              <button className="small-button" type="button" onClick={distributeEqually}>⚖️ Eşit</button>
+              <button className="small-button balanced" type="button" onClick={() => applyPreset('dengeli')}>🛡️ Dengeli</button>
+              <button className="small-button risky" type="button" onClick={() => applyPreset('riskli')}>🚀 Riskli</button>
+              <button className="small-button very-risky" type="button" onClick={() => applyPreset('cokRiskli')}>⚡ Çok Riskli</button>
               <button className="small-button outline" type="button" onClick={resetPortfolio}>🔄 Sıfırla</button>
             </div>
           </div>
