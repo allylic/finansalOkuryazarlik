@@ -94,6 +94,7 @@ function App() {
   const [name, setName] = useState(() => localStorage.getItem('finans-game-name') ?? '')
   const [gameId, setGameId] = useState(() => localStorage.getItem('finans-game-id') ?? '')
   const [playerId, setPlayerId] = useState(() => localStorage.getItem('finans-player-id') ?? '')
+  const [joinGameId, setJoinGameId] = useState('')
   const [game, setGame] = useState(null)
   const [players, setPlayers] = useState([])
   const [latestNews, setLatestNews] = useState(null)
@@ -105,13 +106,10 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [spinningWheel, setSpinningWheel] = useState(false)
   const [message, setMessage] = useState('')
-  const [top10List, setTop10List] = useState([])
-  const [top10ResultInfo, setTop10ResultInfo] = useState(null)
-  const [showTop10Modal, setShowTop10Modal] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     gameStore.loadNews()
-    gameStore.getTop10().then(setTop10List)
   }, [])
 
   const currentPlayer = useMemo(
@@ -223,16 +221,6 @@ function App() {
     })
   }, [game?.status, gameId, secondsRemaining, loadGame])
 
-  useEffect(() => {
-    if (screen === 'results' && currentPlayer) {
-      const bestLabel = currentPlayer.bestInvestment?.label || '-'
-      gameStore.checkAndSaveTop10(currentPlayer.name, currentPlayer.total_value, bestLabel).then((result) => {
-        setTop10ResultInfo(result)
-        setTop10List(result.top10List)
-      })
-    }
-  }, [screen, currentPlayer])
-
   const saveSession = (nextGameId, nextPlayerId, nextName) => {
     localStorage.setItem('finans-game-id', nextGameId)
     localStorage.setItem('finans-player-id', nextPlayerId)
@@ -242,9 +230,9 @@ function App() {
     setName(nextName)
   }
 
-  const startNewGameSession = async () => {
+  const createGame = async () => {
     const trimmedName = name.trim()
-    if (!trimmedName) return setMessage('Devam etmek için lütfen adınızı girin.')
+    if (!trimmedName) return setMessage('Devam etmek için oyuncu adını girin.')
 
     setLoading(true)
     setMessage('')
@@ -252,13 +240,38 @@ function App() {
       const { game: createdGame, player: createdPlayer } = await gameStore.createGame(trimmedName)
       saveSession(createdGame.id, createdPlayer.id, trimmedName)
       await loadGame(createdGame.id)
-      setPortfolio(emptyPortfolio())
-      setScreen('portfolio')
+      setMessage('Oyun odası oluşturuldu. Oda kodunu arkadaşlarınla paylaş.')
     } catch (err) {
       setMessage(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const joinGame = async () => {
+    const trimmedName = name.trim()
+    const requestedGameId = joinGameId.trim().toUpperCase()
+    if (!trimmedName || !requestedGameId) return setMessage('Oyuncu adını ve oda kodunu girin.')
+
+    setLoading(true)
+    setMessage('')
+    try {
+      const { game: targetGame, player: joinedPlayer } = await gameStore.joinGame(requestedGameId, trimmedName)
+      saveSession(targetGame.id, joinedPlayer.id, trimmedName)
+      await loadGame(targetGame.id)
+      setMessage('Oyun odasına katıldın.')
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copyRoomCode = () => {
+    if (!gameId) return
+    navigator.clipboard.writeText(gameId)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const distributeEqually = () => {
@@ -416,16 +429,13 @@ function App() {
   }
 
   const restartGame = async () => {
-    const trimmedName = name.trim() || 'Oyuncu'
+    if (!gameId) return
     setLoading(true)
     setMessage('')
     try {
-      const { game: createdGame, player: createdPlayer } = await gameStore.createGame(trimmedName)
-      saveSession(createdGame.id, createdPlayer.id, trimmedName)
-      await loadGame(createdGame.id)
-      setPortfolio(emptyPortfolio())
-      setTop10ResultInfo(null)
-      setScreen('portfolio')
+      await gameStore.restartGame(gameId)
+      await loadGame(gameId)
+      setMessage('Oyun sıfırlandı. Portföyünüzü yeniden oluşturabilirsiniz.')
     } catch (err) {
       setMessage(err.message)
     } finally {
@@ -443,7 +453,6 @@ function App() {
     setLatestNews(null)
     setPortfolioSnapshots([])
     setPortfolio(emptyPortfolio())
-    setTop10ResultInfo(null)
     setScreen('lobby')
     setMessage('')
   }
@@ -459,42 +468,6 @@ function App() {
     })
   }, [latestNews])
 
-  const renderTop10Table = (list, highlightPlayerName) => (
-    <div className="top10-table-card">
-      <div className="top10-table-header">
-        <span>Sıra</span>
-        <span>Oyuncu</span>
-        <span>Son Varlık</span>
-        <span>Net Kâr</span>
-        <span>Getiri (ROI)</span>
-        <span>En İyi Enstrüman</span>
-      </div>
-      <div className="top10-table-body">
-        {list.map((item, idx) => {
-          const rank = idx + 1
-          const rankBadge = rank === 1 ? '🥇 #1' : rank === 2 ? '🥈 #2' : rank === 3 ? '🥉 #3' : `#${rank}`
-          const isCurrent = highlightPlayerName && item.name === highlightPlayerName
-
-          return (
-            <div className={`top10-row ${isCurrent ? 'highlight-row' : ''} ${rank <= 3 ? `top-${rank}` : ''}`} key={item.id || idx}>
-              <span className="rank-col">{rankBadge}</span>
-              <strong className="name-col">{item.name}</strong>
-              <span className="value-col">{formatCurrency(item.total_value)}</span>
-              <span className={`profit-col ${item.net_profit >= 0 ? 'profit' : 'loss'}`}>
-                {item.net_profit >= 0 ? `+${formatCurrency(item.net_profit)}` : formatCurrency(item.net_profit)}
-              </span>
-              <span className={`roi-col ${item.roi_pct >= 0 ? 'positive' : 'negative'}`}>
-                {item.roi_pct >= 0 ? `+%${item.roi_pct.toFixed(1)}` : `%${item.roi_pct.toFixed(1)}`}
-              </span>
-              <span className="asset-col">{item.best_asset || '-'}</span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-
-
   if (screen === 'results') {
     const winner = playerPerformance[0]
 
@@ -502,27 +475,16 @@ function App() {
       <main className="app-shell">
         <section className="results-card">
           <div className="results-header">
-            <span className="eyebrow">🏆 MUZ CUMHURİYETİ FİNANS OYUNU · 9 TUR TAMAMLANDI</span>
+            <span className="eyebrow">🏆 MUZ CUMHURİYETİ FİNANS OYUNU · 12 TUR TAMAMLANTI</span>
             <h1>Skor ve İnceleme Tablosu</h1>
-            <p>9 turluk çalkantılı finans piyasasının ardından nihai skorlar ve Liderlik Tablosu belirlendi!</p>
+            <p>12 turluk çalkantılı finans piyasasının ardından kazanan Finans Bakanı belli oldu!</p>
           </div>
-
-          {top10ResultInfo?.isTop10 && (
-            <div className="top10-celebration-card">
-              <div className="celebration-badge-row">
-                <span className="celebration-badge">🎉 TEBRİKLER!</span>
-                <span className="rank-highlight">SIRA #{top10ResultInfo.rank} / 10</span>
-              </div>
-              <h2>Liderlik Tablosuna (Top 10) Girdiniz!</h2>
-              <p><strong>{formatCurrency(winner?.total_value ?? 0)}</strong> nihai bakiye ile Muz Cumhuriyeti'nin en başarılı 10 finans yöneticisinden biri oldunuz.</p>
-            </div>
-          )}
 
           {winner && (
             <div className="winner-card">
               <div className="winner-badge-row">
-                <span className="winner-crown">👑 Sonuç</span>
-                <span className="winner-title-tag">Oyun Skoru</span>
+                <span className="winner-crown">👑 Kazanan</span>
+                <span className="winner-title-tag">Muz Cumhuriyeti Finans Bakanı</span>
               </div>
               <h2>{winner.name}</h2>
               <div className="winner-stats-row">
@@ -541,8 +503,75 @@ function App() {
           )}
 
           <div className="leaderboard-section">
-            <span className="list-title">🏆 TOP 10 LİDERLİK TABLOSU (EN YÜKSEK SKORLAR)</span>
-            {renderTop10Table(top10List, winner?.name)}
+            <span className="list-title">📊 Oyuncu Sıralaması & Yatırım Performansları</span>
+            <div className="leaderboard">
+              {playerPerformance.map((player, index) => {
+                const isWinner = index === 0
+                const rankBadge = index === 0 ? '🥇 #1' : index === 1 ? '🥈 #2' : index === 2 ? '🥉 #3' : `#${index + 1}`
+
+                return (
+                  <article className={`score-card ${isWinner ? 'is-winner' : ''}`} key={player.id}>
+                    <div className="score-heading">
+                      <div className="player-rank-info">
+                        <span className="rank-badge">{rankBadge}</span>
+                        <strong className="player-name-text">
+                          {player.name} {player.id === playerId ? '(Sen)' : ''}
+                        </strong>
+                      </div>
+                      <div className="player-total-badge">
+                        <strong>{formatCurrency(player.total_value)}</strong>
+                        <span className={`roi-pill ${player.totalRoiPct >= 0 ? 'positive' : 'negative'}`}>
+                          {player.totalRoiPct >= 0 ? `+%${player.totalRoiPct.toFixed(1)}` : `%${player.totalRoiPct.toFixed(1)}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Best & Worst Performers Grid */}
+                    <div className="performance-highlights">
+                      <div className="highlight-box best">
+                        <span className="highlight-title">🚀 En Çok Kazandıran Yatırım</span>
+                        <div className="highlight-body">
+                          <span>{player.bestInvestment?.icon} {player.bestInvestment?.label}</span>
+                          <strong>
+                            {player.bestInvestment?.change >= 0 ? `+${formatCurrency(player.bestInvestment?.change)}` : formatCurrency(player.bestInvestment?.change)}
+                            {' '}
+                            (%{(player.bestInvestment?.percentage ?? 0).toFixed(1)})
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="highlight-box worst">
+                        <span className="highlight-title">📉 En Çok Kaybettiren Yatırım</span>
+                        <div className="highlight-body">
+                          <span>{player.worstInvestment?.icon} {player.worstInvestment?.label}</span>
+                          <strong>
+                            {player.worstInvestment?.change >= 0 ? `+${formatCurrency(player.worstInvestment?.change)}` : formatCurrency(player.worstInvestment?.change)}
+                            {' '}
+                            (%{(player.worstInvestment?.percentage ?? 0).toFixed(1)})
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Final Portfolio Breakdown Mini Chips */}
+                    <div className="final-asset-breakdown">
+                      <span className="breakdown-title">Son Portföy Dağılımı:</span>
+                      <div className="breakdown-chips-grid">
+                        {player.investments.map(({ key, label, icon, finalValue, sharePct }) => (
+                          <div className="asset-chip-card" key={key}>
+                            <div className="chip-header">
+                              <span>{icon} {label}</span>
+                              <span className="chip-share">%{sharePct.toFixed(1)}</span>
+                            </div>
+                            <strong>{formatCurrency(finalValue)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
           </div>
 
           <div className="results-actions">
@@ -550,7 +579,7 @@ function App() {
               🔄 Yeniden Başla (Yeni Oyun)
             </button>
             <button className="secondary-button full-width" type="button" onClick={leaveGame}>
-              🏠 Ana Menüye Dön
+              🚪 Odadan Ayrıl & Ana Menüye Dön
             </button>
           </div>
           {message && <p className="status-message">{message}</p>}
@@ -690,10 +719,10 @@ function App() {
         <section className="game-card">
           <div className="game-header">
             <div>
-              <span className="eyebrow">Muz Cumhuriyeti · Tur {game?.round_count ?? 0} / 9</span>
+              <span className="eyebrow">Muz Cumhuriyeti · Tur {game?.round_count ?? 0} / 12</span>
               <h1>Haber Çarkı</h1>
             </div>
-            <span className="turn-badge">🎲 Sıra: {activePlayer?.name ?? 'Oyuncu'}</span>
+            <span className="turn-badge">🎲 Sıra: {activePlayer?.name ?? 'Yükleniyor'}</span>
           </div>
 
           {spinningWheel ? (
@@ -705,7 +734,7 @@ function App() {
           ) : latestNews ? (
             <article className="news-card">
               <div className="news-card-header">
-                <span>📰 Son Dakika · Tur {latestNews.round_number} / 9</span>
+                <span>📰 Son Dakika · Tur {latestNews.round_number} / 12</span>
                 <span className="news-id-badge">Haber #{latestNews.news_id || latestNews.news?.id}</span>
               </div>
               <h2>{latestNews.news?.haber_metni}</h2>
@@ -726,29 +755,34 @@ function App() {
           ) : (
             <article className="news-card waiting-news">
               <span>📢 İlk Haber Bekleniyor</span>
-              <h2>Haber çarkını çevirerek oyunu başlatsın.</h2>
+              <h2>Sırası gelen oyuncu haber çarkını başlatsın.</h2>
             </article>
           )}
 
           <button
             className="primary-button full-width spin-button"
-            disabled={loading}
+            disabled={loading || activePlayer?.id !== playerId}
             type="button"
             onClick={drawNews}
           >
-            {spinningWheel ? '🎡 Çark Dönüyor...' : '🎲 Haber Çek (Çarkı Çevir)'}
+            {spinningWheel
+              ? '🎡 Çark Dönüyor...'
+              : activePlayer?.id === playerId
+              ? '🎲 Haber Çek (Çarkı Çevir)'
+              : `⏳ Sıra ${activePlayer?.name ?? 'Diğer oyuncu'} isimli oyuncuda`}
           </button>
 
-          {/* Portfolio Breakdown */}
+          {/* Leaderboard & Portfolio Values */}
           <div className="portfolio-list">
-            <span className="list-title">Güncel Varlık Bilgileri</span>
-            {rankedPlayers.map((player) => (
+            <span className="list-title">Güncel Oyuncu Varlıkları (Sıralama)</span>
+            {rankedPlayers.map((player, idx) => (
               <div className="player-rank-card" key={player.id}>
                 <div className="player-row">
-                  <span>👤 {player.name}</span>
+                  <span>#{idx + 1} · 👤 {player.name}{player.id === playerId ? ' (Sen)' : ''}</span>
                   <strong>{formatCurrency(player.total_value)}</strong>
                 </div>
 
+                {/* Individual Asset Breakdown */}
                 <div className="asset-mini-breakdown">
                   {investmentOptions.map(({ key, label, icon }) => (
                     <div className="mini-asset-chip" key={key}>

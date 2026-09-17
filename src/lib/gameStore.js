@@ -7,7 +7,6 @@ const STORAGE_KEYS = {
   GAME_NEWS: 'finans_game_news_data',
   SNAPSHOTS: 'finans_snapshots_data',
   REBALANCES: 'finans_rebalances_data',
-  TOP10: 'finans_top10_data',
 }
 
 const investmentKeys = [
@@ -25,60 +24,6 @@ const investmentKeys = [
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('finans_game_channel') : null
 
 let newsCache = null
-
-export async function getTop10() {
-  const stored = getStored(STORAGE_KEYS.TOP10)
-  if (stored && stored.length > 0) {
-    return stored.sort((a, b) => b.total_value - a.total_value)
-  }
-  try {
-    const response = await fetch('/top10.json')
-    const json = await response.json()
-    setStored(STORAGE_KEYS.TOP10, json)
-    return json.sort((a, b) => b.total_value - a.total_value)
-  } catch (err) {
-    console.error('Error fetching top10.json:', err)
-    return []
-  }
-}
-
-export async function checkAndSaveTop10(playerName, totalValue, bestAssetLabel = '-') {
-  const currentList = await getTop10()
-  const netProfit = totalValue - 1000000
-  const roiPct = (netProfit / 1000000) * 100
-
-  // Eligible if top 10 has less than 10 items OR score is higher than the 10th score
-  const isEligible = currentList.length < 10 || totalValue > (currentList[currentList.length - 1]?.total_value ?? 0)
-
-  if (!isEligible) {
-    return { isTop10: false, rank: null, top10List: currentList }
-  }
-
-  const newEntry = {
-    id: generateId(),
-    name: playerName,
-    total_value: totalValue,
-    net_profit: netProfit,
-    roi_pct: Number(roiPct.toFixed(1)),
-    best_asset: bestAssetLabel,
-    date: new Date().toISOString().split('T')[0],
-  }
-
-  const updatedList = [...currentList, newEntry]
-    .sort((a, b) => b.total_value - a.total_value)
-    .slice(0, 10)
-
-  setStored(STORAGE_KEYS.TOP10, updatedList)
-
-  const rank = updatedList.findIndex((item) => item.id === newEntry.id) + 1
-
-  return {
-    isTop10: true,
-    rank: rank > 0 ? rank : null,
-    top10List: updatedList,
-  }
-}
-
 
 // Parse CSV text into news objects
 function parseNewsCsv(csvText) {
@@ -414,12 +359,12 @@ export async function drawNews(gameId, playerId) {
   gameNews.push(newsRecord)
   setStored(STORAGE_KEYS.GAME_NEWS, gameNews)
 
-  // Check end game or rebalance trigger (9 rounds total)
-  const MAX_ROUNDS = 9
+  // Check end game or rebalance trigger (12 rounds total)
+  const MAX_ROUNDS = 12
   if (game.round_count >= MAX_ROUNDS) {
     game.status = 'finished'
   } else if (game.round_count % 3 === 0) {
-    // Rebalance trigger every 3 rounds (round 3 and round 6)
+    // Rebalance trigger every 3 rounds
     game.status = 'rebalancing'
     game.rebalance_ends_at = new Date(Date.now() + 2 * 60 * 1000).toISOString()
     // Clear previous rebalances
