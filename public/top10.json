@@ -1,0 +1,92 @@
+[
+  {
+    "id": "top_1",
+    "name": "Ahmet Yılmaz",
+    "total_value": 1450000,
+    "net_profit": 450000,
+    "roi_pct": 45.0,
+    "best_asset": "Altın",
+    "date": "2026-09-15"
+  },
+  {
+    "id": "top_2",
+    "name": "Zeynep Kaya",
+    "total_value": 1380000,
+    "net_profit": 380000,
+    "roi_pct": 38.0,
+    "best_asset": "Hisse Senedi",
+    "date": "2026-09-15"
+  },
+  {
+    "id": "top_3",
+    "name": "Mehmet Demir",
+    "total_value": 1320000,
+    "net_profit": 320000,
+    "roi_pct": 32.0,
+    "best_asset": "VİOP",
+    "date": "2026-09-14"
+  },
+  {
+    "id": "top_4",
+    "name": "Elif Çelik",
+    "total_value": 1270000,
+    "net_profit": 270000,
+    "roi_pct": 27.0,
+    "best_asset": "Gümüş",
+    "date": "2026-09-14"
+  },
+  {
+    "id": "top_5",
+    "name": "Can Öztürk",
+    "total_value": 1210000,
+    "net_profit": 210000,
+    "roi_pct": 21.0,
+    "best_asset": "Yatırım Fonu",
+    "date": "2026-09-13"
+  },
+  {
+    "id": "top_6",
+    "name": "Selin Şahin",
+    "total_value": 1180000,
+    "net_profit": 180000,
+    "roi_pct": 18.0,
+    "best_asset": "Eurobond",
+    "date": "2026-09-12"
+  },
+  {
+    "id": "top_7",
+    "name": "Burak Arslan",
+    "total_value": 1140000,
+    "net_profit": 140000,
+    "roi_pct": 14.0,
+    "best_asset": "Altın",
+    "date": "2026-09-11"
+  },
+  {
+    "id": "top_8",
+    "name": "Deniz Yıldız",
+    "total_value": 1100000,
+    "net_profit": 100000,
+    "roi_pct": 10.0,
+    "best_asset": "Mevduat / Faiz",
+    "date": "2026-09-10"
+  },
+  {
+    "id": "top_9",
+    "name": "Ceren Aydoğan",
+    "total_value": 1060000,
+    "net_profit": 60000,
+    "roi_pct": 6.0,
+    "best_asset": "Devlet Tahvili",
+    "date": "2026-09-09"
+  },
+  {
+    "id": "top_10",
+    "name": "Ege Yüksel",
+    "total_value": 1020000,
+    "net_profit": 20000,
+    "roi_pct": 2.0,
+    "best_asset": "Hisse Senedi",
+    "date": "2026-09-08"
+  }
+]
